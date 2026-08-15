@@ -32,6 +32,7 @@
       <nav id="nav" aria-label="主导航">
         <button class="nav-item active" data-view="overview"><span class="nav-icon">⌂</span>总览</button>
         <button class="nav-item" data-view="firewall"><span class="nav-icon">◇</span>防火墙</button>
+        <button class="nav-item" data-view="network"><span class="nav-icon">⌘</span>网络暴露面</button>
         <button class="nav-item" data-view="ssh"><span class="nav-icon">⌁</span>SSH 安全</button>
         <button class="nav-item" data-view="fail2ban"><span class="nav-icon">⊘</span>入侵防护</button>
         <button class="nav-item" data-view="bruteforce"><span class="nav-icon">!</span>爆破检测</button>
@@ -61,11 +62,13 @@
           </div>
           <div class="overview-grid">
             <section class="panel"><div class="panel-title"><div><p class="eyebrow">PROTECTION</p><h3>防护状态</h3></div><button class="text-button" data-jump="audit">查看审计</button></div><div class="service-list" id="serviceList"></div></section>
-            <section class="panel"><div class="panel-title"><div><p class="eyebrow">RISK POSTURE</p><h3>安全基线</h3></div><span class="score" id="score">--</span></div><div class="check-list" id="checkList"></div></section>
+          <section class="panel"><div class="panel-title"><div><p class="eyebrow">RISK POSTURE</p><h3>安全基线</h3></div><span class="score" id="score">--</span></div><div class="check-list" id="checkList"></div></section>
           </div>
         </section>
 
         <section class="view" id="view-firewall"><div class="section-head"><div><h3>防火墙策略</h3><p>管理主机入站端口，变更会立即写入系统防火墙。</p></div><span class="state-badge" id="firewallState">检测中</span></div><div class="split-grid"><section class="panel"><div class="panel-title"><h3>新增规则</h3></div><form class="action-form" id="portForm"><label>端口与协议</label><div class="control-row"><input name="port" placeholder="443/tcp" pattern="[0-9]{1,5}/(tcp|udp)" required><select name="mode"><option value="allow_port">允许</option><option value="deny_port">拒绝</option></select><button class="primary" type="submit">应用规则</button></div></form><div class="notice"><strong>连接保护</strong><p>修改 SSH 端口规则前，请保留当前终端并验证新连接。</p></div></section><section class="panel"><div class="panel-title"><h3>当前规则</h3><span id="firewallProvider" class="mono"></span></div><div class="rule-list" id="firewallRules"></div></section></div></section>
+
+        <section class="view" id="view-network"><div class="section-head"><div><h3>网络暴露面</h3><p>基于本机监听 socket 识别公网绑定端口，不执行主动探测。</p></div><span class="state-badge" id="networkRisk">检测中</span></div><div class="metric-grid brute-metrics"><article class="metric"><div class="metric-head"><span>公网监听</span><i class="metric-icon disk">!</i></div><strong id="publicPorts">--</strong><small>绑定到非回环地址</small></article><article class="metric"><div class="metric-head"><span>监听总数</span><i class="metric-icon memory">N</i></div><strong id="listeningPorts">--</strong><small>TCP / UDP</small></article><article class="metric"><div class="metric-head"><span>数据源</span><i class="metric-icon cpu">S</i></div><strong id="networkTool">--</strong><small>本机只读检查</small></article></div><section class="panel"><div class="panel-title"><div><p class="eyebrow">LISTENING SOCKETS</p><h3>监听端口</h3></div><span class="mono">ss -lntu</span></div><div class="table-wrap"><table><thead><tr><th>协议</th><th>地址</th><th>端口</th><th>暴露</th></tr></thead><tbody id="networkTable"></tbody></table></div></section></section>
 
         <section class="view" id="view-ssh"><div class="section-head"><div><h3>SSH 访问安全</h3><p>检查远程登录入口和认证策略。</p></div><button class="secondary action" data-action="restart_ssh">重启 SSH</button></div><div class="detail-grid" id="sshDetails"></div><section class="panel recommendation"><div><p class="eyebrow">RECOMMENDATION</p><h3>变更认证策略前先验证密钥</h3><p>保留现有连接，在另一个终端确认公钥登录成功后，再关闭密码认证。</p></div><span class="shield-art">⌁</span></section></section>
 

@@ -36,16 +36,27 @@ function renderOverview(data) {
 }
 
 function renderBaseline() {
-  const ssh = state.data.ssh, fw = state.data.firewall, ban = state.data.fail2ban;
+  const ssh = state.data.ssh, fw = state.data.firewall, ban = state.data.fail2ban, network = state.data.network;
   const checks = [
     [fw.active, '防火墙已启用', fw.active ? `${fw.provider} 正在保护入站流量` : '建议立即启用主机防火墙'],
     [ssh && !ssh.password_auth, 'SSH 密码认证', ssh && !ssh.password_auth ? '已关闭，使用密钥认证' : '仍允许密码登录'],
     [ban.active, '暴力破解防护', ban.active ? 'Fail2Ban sshd 监狱运行中' : 'Fail2Ban 未运行'],
     [ssh && ssh.root_login !== 'yes', 'Root 登录策略', ssh ? `当前策略：${ssh.root_login}` : '读取失败']
+    ,[network && network.public_count === 0, '公网暴露面', network ? `${network.public_count} 个公网监听端口` : '读取失败']
   ];
   const passed = checks.filter(item => item[0]).length;
   $('#score').textContent = `${Math.round(passed / checks.length * 100)}%`;
   $('#checkList').innerHTML = checks.map(item => `<div class="check${item[0] ? '' : ' warn'}"><i>${item[0] ? '✓' : '!'}</i><div><strong>${item[1]}</strong><small>${item[2]}</small></div></div>`).join('');
+}
+
+function renderNetwork(data) {
+  $('#publicPorts').textContent = data.public_count;
+  $('#listeningPorts').textContent = data.listening.length;
+  $('#networkTool').textContent = data.available ? data.tool : '--';
+  const labels = { critical: '高风险', high: '需关注', medium: '有限暴露', low: '未发现', unknown: '不可用' };
+  $('#networkRisk').textContent = labels[data.risk] || data.risk;
+  $('#networkRisk').className = `state-badge${['critical', 'high'].includes(data.risk) ? ' off' : ''}`;
+  $('#networkTable').innerHTML = data.listening.length ? data.listening.map(item => `<tr><td>${escapeHtml(item.protocol.toUpperCase())}</td><td class="mono">${escapeHtml(item.address)}</td><td><strong>${item.port}</strong></td><td><span class="risk ${item.public ? 'high' : 'low'}">${item.public ? '公网' : '回环'}</span></td></tr>`).join('') : '<tr><td colspan="4" class="empty">暂未读取到监听端口</td></tr>';
 }
 
 function renderFirewall(data) {
@@ -82,15 +93,15 @@ function renderAudit(data) {
 function escapeHtml(value) { const node = document.createElement('span'); node.textContent = value; return node.innerHTML; }
 
 async function loadAll() {
-  const names = ['overview', 'ssh', 'firewall', 'fail2ban', 'bruteforce', 'users', 'audit'];
+  const names = ['overview', 'ssh', 'firewall', 'network', 'fail2ban', 'bruteforce', 'users', 'audit'];
   const values = await Promise.all(names.map(name => api(name)));
   names.forEach((name, index) => state.data[name] = values[index]);
-  renderOverview(state.data.overview); renderSsh(state.data.ssh); renderFirewall(state.data.firewall); renderFail2ban(state.data.fail2ban); renderBruteForce(state.data.bruteforce); renderUsers(state.data.users); renderAudit(state.data.audit); renderBaseline();
+  renderOverview(state.data.overview); renderSsh(state.data.ssh); renderFirewall(state.data.firewall); renderNetwork(state.data.network); renderFail2ban(state.data.fail2ban); renderBruteForce(state.data.bruteforce); renderUsers(state.data.users); renderAudit(state.data.audit); renderBaseline();
   $('#updatedAt').textContent = `更新于 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function showView(name) {
-  const titles = { overview: ['SECURITY OVERVIEW', '安全总览'], firewall: ['NETWORK POLICY', '防火墙'], ssh: ['REMOTE ACCESS', 'SSH 安全'], fail2ban: ['INTRUSION PREVENTION', '入侵防护'], bruteforce: ['THREAT DETECTION', '爆破检测'], users: ['ACCESS CONTROL', '用户权限'], audit: ['AUDIT TRAIL', '审计日志'] };
+  const titles = { overview: ['SECURITY OVERVIEW', '安全总览'], firewall: ['NETWORK POLICY', '防火墙'], network: ['ATTACK SURFACE', '网络暴露面'], ssh: ['REMOTE ACCESS', 'SSH 安全'], fail2ban: ['INTRUSION PREVENTION', '入侵防护'], bruteforce: ['THREAT DETECTION', '爆破检测'], users: ['ACCESS CONTROL', '用户权限'], audit: ['AUDIT TRAIL', '审计日志'] };
   state.view = name; $$('.view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`)); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   $('#viewEyebrow').textContent = titles[name][0]; $('#viewTitle').textContent = titles[name][1]; $('.sidebar').classList.remove('open');
 }
