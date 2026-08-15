@@ -62,6 +62,12 @@ class SystemManagerTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             self.manager.act("ban_ip", {"ip": "198.51.100.1;reboot"}, "127.0.0.1")
 
+    def test_parses_public_and_loopback_listeners(self):
+        output = "tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\ntcp LISTEN 0 128 127.0.0.1:8787 0.0.0.0:*\ntcp6 LISTEN 0 128 [::]:443 [::]:*"
+        result = self.manager._parse_listening_ports(output)
+        self.assertEqual([item["port"] for item in result], [22, 443, 8787])
+        self.assertEqual(sum(item["public"] for item in result), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
