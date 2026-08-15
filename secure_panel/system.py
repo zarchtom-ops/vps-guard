@@ -22,6 +22,7 @@ SSH_FAILURE_PATTERNS = (
     re.compile(r"Invalid user \S+ from ([0-9a-fA-F:.]+)"),
     re.compile(r"authentication failure.*rhost=([0-9a-fA-F:.]+)"),
 )
+LISTENING_RE = re.compile(r"^(tcp|tcp6|udp|udp6)\s+LISTEN\s+\S+\s+\S+\s+(\S+)\s+\S+(?:\s+.*)?$")
 
 
 class ActionError(RuntimeError):
@@ -129,6 +130,42 @@ class SystemManager:
             ports = self.run(["firewall-cmd", "--list-ports"])
             return {"provider": "firewalld", "active": state.ok, "rules": ports.output.split()}
         return {"provider": "none", "active": False, "rules": []}
+
+    @staticmethod
+    def _parse_listening_ports(output: str) -> list[dict[str, Any]]:
+        ports: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, int]] = set()
+        for line in output.splitlines():
+            match = LISTENING_RE.match(line.strip())
+            if not match:
+                continue
+            protocol, endpoint = match.groups()
+            if endpoint.startswith("[") and "]:" in endpoint:
+                address, port_text = endpoint.rsplit("]:", 1)
+                address = address[1:]
+            elif ":" in endpoint:
+                address, port_text = endpoint.rsplit(":", 1)
+            else:
+                continue
+            if not port_text.isdigit() or not 0 < int(port_text) <= 65535:
+                continue
+            port = int(port_text)
+            key = (protocol, address, port)
+            if key in seen:
+                continue
+            seen.add(key)
+            public = address in {"0.0.0.0", "::", "*"} or address not in {"127.0.0.1", "::1", "localhost"}
+            ports.append({"protocol": protocol.replace("6", ""), "address": address, "port": port, "public": public})
+        return sorted(ports, key=lambda item: (not item["public"], item["port"], item["protocol"]))
+
+    def network_exposure(self) -> dict[str, Any]:
+        if not shutil.which("ss"):
+            return {"available": False, "tool": "未找到 ss", "public_count": 0, "listening": [], "risk": "unknown"}
+        result = self.run(["ss", "-lntuH"], 12)
+        listening = self._parse_listening_ports(result.output)
+        public_count = sum(1 for item in listening if item["public"])
+        risk = "critical" if public_count >= 5 else "high" if public_count >= 2 else "medium" if public_count else "low"
+        return {"available": result.ok, "tool": "ss", "public_count": public_count, "listening": listening, "risk": risk}
 
     def fail2ban_status(self) -> dict[str, Any]:
         if not shutil.which("fail2ban-client"):
@@ -299,6 +336,20 @@ class DemoSystemManager(SystemManager):
             "provider": "ufw",
             "active": True,
             "rules": ["[ 1] 22022/tcp ALLOW IN Anywhere", "[ 2] 80/tcp ALLOW IN Anywhere", "[ 3] 443/tcp ALLOW IN Anywhere"],
+        }
+
+    def network_exposure(self) -> dict[str, Any]:
+        return {
+            "available": True,
+            "tool": "ss",
+            "public_count": 3,
+            "risk": "high",
+            "listening": [
+                {"protocol": "tcp", "address": "0.0.0.0", "port": 22022, "public": True},
+                {"protocol": "tcp", "address": "0.0.0.0", "port": 443, "public": True},
+                {"protocol": "tcp", "address": "127.0.0.1", "port": 8787, "public": False},
+                {"protocol": "udp", "address": "127.0.0.1", "port": 323, "public": False},
+            ],
         }
 
     def fail2ban_status(self) -> dict[str, Any]:
