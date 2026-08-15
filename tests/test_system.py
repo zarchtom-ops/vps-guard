@@ -49,6 +49,19 @@ class SystemManagerTests(unittest.TestCase):
         self.assertEqual(entry["actor"], "10.0.0.2")
         self.assertTrue(entry["ok"])
 
+    @patch("secure_panel.system.shutil.which", return_value=None)
+    @patch.object(SystemManager, "_read", side_effect=lambda path, default="": "Aug 15 08:20:01 host sshd[1]: Failed password for root from 198.51.100.8 port 22 ssh2\nAug 15 08:20:02 host sshd[1]: Invalid user admin from 198.51.100.8 port 22" if path == "/var/log/auth.log" else "")
+    def test_brute_force_groups_failed_logins(self, _read, _which):
+        result = self.manager.brute_force_status()
+        self.assertTrue(result["available"])
+        self.assertEqual(result["total_attempts"], 2)
+        self.assertEqual(result["top_ips"][0]["ip"], "198.51.100.8")
+        self.assertEqual(result["top_ips"][0]["attempts"], 2)
+
+    def test_rejects_invalid_ban_ip(self):
+        with self.assertRaises(ActionError):
+            self.manager.act("ban_ip", {"ip": "198.51.100.1;reboot"}, "127.0.0.1")
+
 
 if __name__ == "__main__":
     unittest.main()
