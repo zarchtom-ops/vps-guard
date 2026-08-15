@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>VPS Guard 安全控制台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="login" id="login">
+    <div class="login-panel">
+      <div class="brand-mark" aria-hidden="true"><span></span></div>
+      <p class="eyebrow">VPS GUARD</p>
+      <h1>服务器安全控制台</h1>
+      <p class="muted">输入安装时生成的访问令牌</p>
+      <form id="loginForm">
+        <label for="token">访问令牌</label>
+        <div class="token-row">
+          <input id="token" name="token" type="password" autocomplete="current-password" minlength="24" required autofocus>
+          <button class="primary" type="submit">进入控制台</button>
+        </div>
+        <p class="form-error" id="loginError" role="alert"></p>
+      </form>
+      <p class="login-foot">仅保存在当前浏览器会话中</p>
+    </div>
+  </div>
+
+  <div class="shell hidden" id="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark small"><span></span></div><div><strong>VPS Guard</strong><small>安全控制台</small></div></div>
+      <nav id="nav" aria-label="主导航">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">⌂</span>总览</button>
+        <button class="nav-item" data-view="firewall"><span class="nav-icon">◇</span>防火墙</button>
+        <button class="nav-item" data-view="ssh"><span class="nav-icon">⌁</span>SSH 安全</button>
+        <button class="nav-item" data-view="fail2ban"><span class="nav-icon">⊘</span>入侵防护</button>
+        <button class="nav-item" data-view="users"><span class="nav-icon">◎</span>用户权限</button>
+        <button class="nav-item" data-view="audit"><span class="nav-icon">≡</span>审计日志</button>
+      </nav>
+      <div class="sidebar-foot"><span class="status-dot"></span><span>面板连接正常</span><button id="logout" title="退出登录" aria-label="退出登录">↪</button></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button class="menu-button" id="menuButton" aria-label="打开导航">☰</button>
+        <div><p class="eyebrow" id="viewEyebrow">SECURITY OVERVIEW</p><h2 id="viewTitle">安全总览</h2></div>
+        <div class="top-actions"><span class="last-update" id="updatedAt">尚未更新</span><button class="icon-button" id="refresh" title="刷新数据" aria-label="刷新数据">↻</button></div>
+      </header>
+
+      <div class="content">
+        <section class="view active" id="view-overview">
+          <div class="host-strip">
+            <div><span class="live-pill"><i></i>在线</span><h3 id="hostname">正在读取主机</h3><p id="platform">系统信息加载中</p></div>
+            <dl><div><dt>内核</dt><dd id="kernel">--</dd></div><div><dt>运行时间</dt><dd id="uptime">--</dd></div><div><dt>平均负载</dt><dd id="load">--</dd></div></dl>
+          </div>
+          <div class="metric-grid">
+            <article class="metric"><div class="metric-head"><span>CPU 负载</span><i class="metric-icon cpu">C</i></div><strong id="cpuValue">--</strong><div class="bar"><span id="cpuBar"></span></div><small id="cpuHint">1 分钟平均值</small></article>
+            <article class="metric"><div class="metric-head"><span>内存占用</span><i class="metric-icon memory">M</i></div><strong id="memoryValue">--</strong><div class="bar"><span id="memoryBar"></span></div><small>可用内存实时计算</small></article>
+            <article class="metric"><div class="metric-head"><span>系统盘</span><i class="metric-icon disk">D</i></div><strong id="diskValue">--</strong><div class="bar"><span id="diskBar"></span></div><small>根目录文件系统</small></article>
+          </div>
+          <div class="overview-grid">
+            <section class="panel"><div class="panel-title"><div><p class="eyebrow">PROTECTION</p><h3>防护状态</h3></div><button class="text-button" data-jump="audit">查看审计</button></div><div class="service-list" id="serviceList"></div></section>
+            <section class="panel"><div class="panel-title"><div><p class="eyebrow">RISK POSTURE</p><h3>安全基线</h3></div><span class="score" id="score">--</span></div><div class="check-list" id="checkList"></div></section>
+          </div>
+        </section>
+
+        <section class="view" id="view-firewall"><div class="section-head"><div><h3>防火墙策略</h3><p>管理主机入站端口，变更会立即写入系统防火墙。</p></div><span class="state-badge" id="firewallState">检测中</span></div><div class="split-grid"><section class="panel"><div class="panel-title"><h3>新增规则</h3></div><form class="action-form" id="portForm"><label>端口与协议</label><div class="control-row"><input name="port" placeholder="443/tcp" pattern="[0-9]{1,5}/(tcp|udp)" required><select name="mode"><option value="allow_port">允许</option><option value="deny_port">拒绝</option></select><button class="primary" type="submit">应用规则</button></div></form><div class="notice"><strong>连接保护</strong><p>修改 SSH 端口规则前，请保留当前终端并验证新连接。</p></div></section><section class="panel"><div class="panel-title"><h3>当前规则</h3><span id="firewallProvider" class="mono"></span></div><div class="rule-list" id="firewallRules"></div></section></div></section>
+
+        <section class="view" id="view-ssh"><div class="section-head"><div><h3>SSH 访问安全</h3><p>检查远程登录入口和认证策略。</p></div><button class="secondary action" data-action="restart_ssh">重启 SSH</button></div><div class="detail-grid" id="sshDetails"></div><section class="panel recommendation"><div><p class="eyebrow">RECOMMENDATION</p><h3>变更认证策略前先验证密钥</h3><p>保留现有连接，在另一个终端确认公钥登录成功后，再关闭密码认证。</p></div><span class="shield-art">⌁</span></section></section>
+
+        <section class="view" id="view-fail2ban"><div class="section-head"><div><h3>入侵防护</h3><p>查看 SSH 暴力破解拦截与封禁状态。</p></div><button class="secondary action" data-action="restart_fail2ban">重启服务</button></div><div class="ban-summary"><div><p>当前封禁</p><strong id="banCount">0</strong><span>个地址</span></div><div><p>服务状态</p><strong id="banState">--</strong><span>Fail2Ban / sshd</span></div></div><section class="panel"><div class="panel-title"><h3>封禁列表</h3></div><div class="table-wrap"><table><thead><tr><th>IP 地址</th><th>监狱</th><th>操作</th></tr></thead><tbody id="banTable"></tbody></table></div></section></section>
+
+        <section class="view" id="view-users"><div class="section-head"><div><h3>用户与权限</h3><p>仅展示可登录的普通系统用户。</p></div></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>用户</th><th>UID</th><th>主目录</th><th>登录 Shell</th><th>操作</th></tr></thead><tbody id="usersTable"></tbody></table></div></section></section>
+
+        <section class="view" id="view-audit"><div class="section-head"><div><h3>操作审计</h3><p>所有通过面板发起的系统变更均写入本机日志。</p></div></div><section class="panel"><div class="timeline" id="auditList"></div></section></section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="confirmDialog"><form method="dialog"><p class="eyebrow">CONFIRM ACTION</p><h3>确认执行系统操作？</h3><p id="confirmText">该操作会修改服务器配置。</p><div class="dialog-actions"><button value="cancel" class="secondary">取消</button><button value="confirm" class="danger">确认执行</button></div></form></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
