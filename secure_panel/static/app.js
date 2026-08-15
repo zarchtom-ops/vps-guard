@@ -63,6 +63,14 @@ function renderFail2ban(data) {
   $('#banTable').innerHTML = data.banned.length ? data.banned.map(ip => `<tr><td class="mono">${escapeHtml(ip)}</td><td>sshd</td><td><button class="secondary unban" data-ip="${escapeHtml(ip)}">解除封禁</button></td></tr>`).join('') : '<tr><td colspan="3" class="empty">当前没有被封禁的地址</td></tr>';
 }
 
+function renderBruteForce(data) {
+  $('#bruteAttempts').textContent = data.total_attempts;
+  $('#bruteIps').textContent = data.unique_ips;
+  $('#bruteSource').textContent = data.log_source === '未找到 SSH 认证日志' ? '--' : data.log_source.replace('/var/log/', '');
+  $('#bruteAvailability').textContent = data.available ? '日志读取正常' : '未找到认证日志';
+  $('#bruteTable').innerHTML = data.top_ips.length ? data.top_ips.map(item => `<tr><td class="mono">${escapeHtml(item.ip)}</td><td><strong>${item.attempts}</strong></td><td>${escapeHtml(item.usernames.join(', '))}</td><td class="mono">${escapeHtml(item.last_seen)}</td><td><span class="risk ${item.risk}">${item.risk === 'critical' ? '严重' : item.risk === 'high' ? '高' : item.risk === 'medium' ? '中' : '低'}</span></td><td><button class="danger ban-ip" data-ip="${escapeHtml(item.ip)}">封禁 IP</button></td></tr>`).join('') : '<tr><td colspan="6" class="empty">暂未发现 SSH 失败登录记录</td></tr>';
+}
+
 function renderUsers(data) {
   $('#usersTable').innerHTML = data.length ? data.map(user => `<tr><td><strong>${escapeHtml(user.name)}</strong></td><td>${user.uid}</td><td class="mono">${escapeHtml(user.home)}</td><td class="mono">${escapeHtml(user.shell)}</td><td><button class="secondary lock-user" data-user="${escapeHtml(user.name)}">锁定</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty">没有普通用户</td></tr>';
 }
@@ -74,15 +82,15 @@ function renderAudit(data) {
 function escapeHtml(value) { const node = document.createElement('span'); node.textContent = value; return node.innerHTML; }
 
 async function loadAll() {
-  const names = ['overview', 'ssh', 'firewall', 'fail2ban', 'users', 'audit'];
+  const names = ['overview', 'ssh', 'firewall', 'fail2ban', 'bruteforce', 'users', 'audit'];
   const values = await Promise.all(names.map(name => api(name)));
   names.forEach((name, index) => state.data[name] = values[index]);
-  renderOverview(state.data.overview); renderSsh(state.data.ssh); renderFirewall(state.data.firewall); renderFail2ban(state.data.fail2ban); renderUsers(state.data.users); renderAudit(state.data.audit); renderBaseline();
+  renderOverview(state.data.overview); renderSsh(state.data.ssh); renderFirewall(state.data.firewall); renderFail2ban(state.data.fail2ban); renderBruteForce(state.data.bruteforce); renderUsers(state.data.users); renderAudit(state.data.audit); renderBaseline();
   $('#updatedAt').textContent = `更新于 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function showView(name) {
-  const titles = { overview: ['SECURITY OVERVIEW', '安全总览'], firewall: ['NETWORK POLICY', '防火墙'], ssh: ['REMOTE ACCESS', 'SSH 安全'], fail2ban: ['INTRUSION PREVENTION', '入侵防护'], users: ['ACCESS CONTROL', '用户权限'], audit: ['AUDIT TRAIL', '审计日志'] };
+  const titles = { overview: ['SECURITY OVERVIEW', '安全总览'], firewall: ['NETWORK POLICY', '防火墙'], ssh: ['REMOTE ACCESS', 'SSH 安全'], fail2ban: ['INTRUSION PREVENTION', '入侵防护'], bruteforce: ['THREAT DETECTION', '爆破检测'], users: ['ACCESS CONTROL', '用户权限'], audit: ['AUDIT TRAIL', '审计日志'] };
   state.view = name; $$('.view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`)); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   $('#viewEyebrow').textContent = titles[name][0]; $('#viewTitle').textContent = titles[name][1]; $('.sidebar').classList.remove('open');
 }
@@ -99,7 +107,8 @@ $('#refresh').addEventListener('click', () => loadAll().then(() => toast('数据
 $('#logout').addEventListener('click', () => { sessionStorage.removeItem('vpsGuardToken'); location.reload(); });
 $('#menuButton').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
 $('#nav').addEventListener('click', event => { const button = event.target.closest('[data-view]'); if (button) showView(button.dataset.view); });
-document.addEventListener('click', event => { const jump = event.target.closest('[data-jump]'); if (jump) showView(jump.dataset.jump); const action = event.target.closest('.action'); if (action) perform(action.dataset.action); const unban = event.target.closest('.unban'); if (unban) perform('unban_ip', { ip: unban.dataset.ip }); const lock = event.target.closest('.lock-user'); if (lock) perform('lock_user', { user: lock.dataset.user }); });
+document.addEventListener('click', event => { const jump = event.target.closest('[data-jump]'); if (jump) showView(jump.dataset.jump); const action = event.target.closest('.action'); if (action) perform(action.dataset.action); const unban = event.target.closest('.unban'); if (unban) perform('unban_ip', { ip: unban.dataset.ip }); const ban = event.target.closest('.ban-ip'); if (ban) perform('ban_ip', { ip: ban.dataset.ip }); const lock = event.target.closest('.lock-user'); if (lock) perform('lock_user', { user: lock.dataset.user }); });
 $('#portForm').addEventListener('submit', event => { event.preventDefault(); const form = new FormData(event.currentTarget); perform(form.get('mode'), { port: form.get('port') }); });
+$('#refreshBrute').addEventListener('click', () => loadAll().then(() => toast('爆破检测已刷新')).catch(error => toast(error.message, true)));
 
 if (state.token) { $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); loadAll().catch(() => { sessionStorage.removeItem('vpsGuardToken'); location.reload(); }); }

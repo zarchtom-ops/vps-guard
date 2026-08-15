@@ -34,6 +34,7 @@
         <button class="nav-item" data-view="firewall"><span class="nav-icon">◇</span>防火墙</button>
         <button class="nav-item" data-view="ssh"><span class="nav-icon">⌁</span>SSH 安全</button>
         <button class="nav-item" data-view="fail2ban"><span class="nav-icon">⊘</span>入侵防护</button>
+        <button class="nav-item" data-view="bruteforce"><span class="nav-icon">!</span>爆破检测</button>
         <button class="nav-item" data-view="users"><span class="nav-icon">◎</span>用户权限</button>
         <button class="nav-item" data-view="audit"><span class="nav-icon">≡</span>审计日志</button>
       </nav>
@@ -69,6 +70,8 @@
         <section class="view" id="view-ssh"><div class="section-head"><div><h3>SSH 访问安全</h3><p>检查远程登录入口和认证策略。</p></div><button class="secondary action" data-action="restart_ssh">重启 SSH</button></div><div class="detail-grid" id="sshDetails"></div><section class="panel recommendation"><div><p class="eyebrow">RECOMMENDATION</p><h3>变更认证策略前先验证密钥</h3><p>保留现有连接，在另一个终端确认公钥登录成功后，再关闭密码认证。</p></div><span class="shield-art">⌁</span></section></section>
 
         <section class="view" id="view-fail2ban"><div class="section-head"><div><h3>入侵防护</h3><p>查看 SSH 暴力破解拦截与封禁状态。</p></div><button class="secondary action" data-action="restart_fail2ban">重启服务</button></div><div class="ban-summary"><div><p>当前封禁</p><strong id="banCount">0</strong><span>个地址</span></div><div><p>服务状态</p><strong id="banState">--</strong><span>Fail2Ban / sshd</span></div></div><section class="panel"><div class="panel-title"><h3>封禁列表</h3></div><div class="table-wrap"><table><thead><tr><th>IP 地址</th><th>监狱</th><th>操作</th></tr></thead><tbody id="banTable"></tbody></table></div></section></section>
+
+        <section class="view" id="view-bruteforce"><div class="section-head"><div><h3>IP 爆破检测</h3><p>统计最近 24 小时 SSH 认证失败，检测只读日志，不会自动封禁。</p></div><button class="secondary" id="refreshBrute">刷新检测</button></div><div class="metric-grid brute-metrics"><article class="metric"><div class="metric-head"><span>失败尝试</span><i class="metric-icon disk">!</i></div><strong id="bruteAttempts">--</strong><small>最近 24 小时</small></article><article class="metric"><div class="metric-head"><span>攻击来源</span><i class="metric-icon memory">IP</i></div><strong id="bruteIps">--</strong><small>去重后的地址</small></article><article class="metric"><div class="metric-head"><span>日志来源</span><i class="metric-icon cpu">L</i></div><strong id="bruteSource">--</strong><small id="bruteAvailability">检测状态</small></article></div><section class="panel"><div class="panel-title"><div><p class="eyebrow">TOP SOURCES</p><h3>高频攻击 IP</h3></div><span class="mono">SSH / 24H</span></div><div class="table-wrap"><table><thead><tr><th>IP 地址</th><th>失败次数</th><th>尝试用户名</th><th>最近出现</th><th>风险</th><th>操作</th></tr></thead><tbody id="bruteTable"></tbody></table></div></section></section>
 
         <section class="view" id="view-users"><div class="section-head"><div><h3>用户与权限</h3><p>仅展示可登录的普通系统用户。</p></div></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>用户</th><th>UID</th><th>主目录</th><th>登录 Shell</th><th>操作</th></tr></thead><tbody id="usersTable"></tbody></table></div></section></section>
 
