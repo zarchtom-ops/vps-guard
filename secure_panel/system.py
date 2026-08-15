@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import os
 import platform
 import re
@@ -16,6 +17,11 @@ from typing import Any
 PORT_RE = re.compile(r"^(\d{1,5})/(tcp|udp)$")
 IP_RE = re.compile(r"^[0-9a-fA-F:.]+$")
 USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
+SSH_FAILURE_PATTERNS = (
+    re.compile(r"Failed \S+ for (?:invalid user )?(\S+) from ([0-9a-fA-F:.]+)"),
+    re.compile(r"Invalid user \S+ from ([0-9a-fA-F:.]+)"),
+    re.compile(r"authentication failure.*rhost=([0-9a-fA-F:.]+)"),
+)
 
 
 class ActionError(RuntimeError):
@@ -132,6 +138,66 @@ class SystemManager:
         banned = match.group(1).split() if match else []
         return {"installed": True, "active": result.ok, "banned": banned, "total": len(banned)}
 
+    def _auth_log_lines(self) -> tuple[list[str], str]:
+        sources = ("/var/log/auth.log", "/var/log/secure")
+        lines: list[str] = []
+        used: list[str] = []
+        for source in sources:
+            content = self._read(source)
+            if content:
+                lines.extend(content.splitlines()[-20000:])
+                used.append(source)
+        if not lines and shutil.which("journalctl"):
+            result = self.run(["journalctl", "--since", "-24 hours", "-u", "ssh", "-u", "sshd", "--no-pager", "-o", "short-iso"], 20)
+            if result.output:
+                lines = result.output.splitlines()[-20000:]
+                used.append("journalctl")
+        return lines, ", ".join(used) or "未找到 SSH 认证日志"
+
+    def brute_force_status(self) -> dict[str, Any]:
+        lines, source = self._auth_log_lines()
+        attacks: dict[str, dict[str, Any]] = {}
+        recent: list[dict[str, Any]] = []
+        for line in lines:
+            match = None
+            username = "unknown"
+            for pattern in SSH_FAILURE_PATTERNS:
+                candidate = pattern.search(line)
+                if candidate:
+                    match = candidate
+                    if len(candidate.groups()) == 2:
+                        username = candidate.group(1)
+                    break
+            if not match:
+                continue
+            ip = match.group(2) if len(match.groups()) == 2 else match.group(1)
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                continue
+            item = attacks.setdefault(ip, {"ip": ip, "attempts": 0, "usernames": set(), "last_seen": "未知"})
+            item["attempts"] += 1
+            item["usernames"].add(username)
+            timestamp = line[:19].strip()
+            if timestamp:
+                item["last_seen"] = timestamp
+            if len(recent) < 12:
+                recent.append({"ip": ip, "username": username, "raw": line[:180]})
+        top = []
+        for item in sorted(attacks.values(), key=lambda value: value["attempts"], reverse=True):
+            attempts = item["attempts"]
+            risk = "critical" if attempts >= 50 else "high" if attempts >= 20 else "medium" if attempts >= 5 else "low"
+            top.append({"ip": item["ip"], "attempts": attempts, "usernames": sorted(item["usernames"])[:8], "last_seen": item["last_seen"], "risk": risk})
+        return {
+            "available": bool(lines),
+            "window_hours": 24,
+            "log_source": source,
+            "total_attempts": sum(item["attempts"] for item in attacks.values()),
+            "unique_ips": len(top),
+            "top_ips": top[:30],
+            "recent": recent,
+        }
+
     def users(self) -> list[dict[str, Any]]:
         users: list[dict[str, Any]] = []
         for line in self._read("/etc/passwd").splitlines():
@@ -189,11 +255,14 @@ class SystemManager:
                     self.run(["firewall-cmd", "--reload"], 25)
             else:
                 raise ActionError("未检测到 UFW 或 firewalld")
-        elif action == "unban_ip":
+        elif action in {"unban_ip", "ban_ip"}:
             ip = str(args.get("ip", ""))
-            if not IP_RE.fullmatch(ip):
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
                 raise ActionError("IP 地址格式无效")
-            result = self.run(["fail2ban-client", "set", "sshd", "unbanip", ip])
+            operation = "unbanip" if action == "unban_ip" else "banip"
+            result = self.run(["fail2ban-client", "set", "sshd", operation, ip])
         elif action == "lock_user":
             user = str(args.get("user", ""))
             if not USER_RE.fullmatch(user) or user == "root":
@@ -234,6 +303,21 @@ class DemoSystemManager(SystemManager):
 
     def fail2ban_status(self) -> dict[str, Any]:
         return {"installed": True, "active": True, "banned": ["198.51.100.24", "203.0.113.81"], "total": 2}
+
+    def brute_force_status(self) -> dict[str, Any]:
+        return {
+            "available": True,
+            "window_hours": 24,
+            "log_source": "journalctl",
+            "total_attempts": 87,
+            "unique_ips": 4,
+            "top_ips": [
+                {"ip": "198.51.100.42", "attempts": 52, "usernames": ["root", "admin"], "last_seen": "2026-08-15 08:22:41", "risk": "critical"},
+                {"ip": "203.0.113.77", "attempts": 21, "usernames": ["ubuntu"], "last_seen": "2026-08-15 07:48:10", "risk": "high"},
+                {"ip": "192.0.2.19", "attempts": 9, "usernames": ["test"], "last_seen": "2026-08-15 06:13:02", "risk": "medium"},
+            ],
+            "recent": [],
+        }
 
     def users(self) -> list[dict[str, Any]]:
         return [{"name": "operator", "uid": 1000, "home": "/home/operator", "shell": "/bin/bash"}]

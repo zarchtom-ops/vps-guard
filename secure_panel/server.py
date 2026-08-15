@@ -96,6 +96,7 @@ class PanelHandler(BaseHTTPRequestHandler):
             "/api/ssh": manager.ssh_status,
             "/api/firewall": manager.firewall_status,
             "/api/fail2ban": manager.fail2ban_status,
+            "/api/bruteforce": manager.brute_force_status,
             "/api/users": manager.users,
             "/api/audit": manager.audit,
         }
